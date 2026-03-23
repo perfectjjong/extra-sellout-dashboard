@@ -1,0 +1,28 @@
+{
+  "_comment": "Promoter store list - update monthly",
+  "current_month": "2026-03",
+  "promoter_stores": [
+    "J10- Mekkah [2]",
+    "J18 - Jeddah [4]",
+    "J22 - Taif2 Shifa Road",
+    "JS1 - Sultan",
+    "JS7 - Jeddah 3 Thaliah Alazezyah",
+    "KS1 - Raka",
+    "KS2 - Al-Hassa",
+    "KS3 - Azzizya",
+    "KS5 - Jubail",
+    "KS6 - Faisalya S/R (Airport Rd)",
+    "KS9 - AL-HASSA [2]",
+    "R12 - AL-SAHAFA",
+    "R13-eXtra King Abdullah",
+    "R18 - Yasmin",
+    "R20 - NRR",
+    "RS1 - Al-Worrod",
+    "RS2 - Ghurnata",
+    "RS3 - Suwaidi",
+    "RS5 - Khurais",
+    "RS6 - Al-Raed",
+    "RS7 - Al-Remal",
+    "RS8 - Al-Badiah"
+  ]
+}
