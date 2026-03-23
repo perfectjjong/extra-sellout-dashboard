@@ -187,12 +187,40 @@ body{display:block}
   </div>
 </div>
 
-<script src="data.js"></script>
 <script>
-try { Chart.register(ChartDataLabels); } catch(e) { console.error("Chart init error:", e); }
-Chart.defaults.set('plugins.datalabels',{display:false});
-
-const DD=RAW.d;
+(async function() {
+  const overlay = document.getElementById('loading-overlay');
+  function showStatus(msg) { if(overlay) overlay.textContent = msg; }
+  
+  try {
+    // 1. Load data via fetch + JSON.parse (much faster than script tag on mobile)
+    showStatus('Loading data...');
+    let resp;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        resp = await fetch('data.json?v=' + Date.now());
+        if (resp.ok) break;
+        showStatus('Retry ' + attempt + '/3...');
+      } catch(e) {
+        if (attempt === 3) throw e;
+        showStatus('Retry ' + attempt + '/3...');
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+    if (!resp || !resp.ok) throw new Error('Failed to load data: ' + (resp ? resp.status : 'network error'));
+    
+    showStatus('Parsing data...');
+    const RAW = await resp.json();
+    window.RAW = RAW;  // Make globally available
+    
+    showStatus('Rendering charts...');
+    
+    // 2. Initialize Chart.js
+    try { Chart.register(ChartDataLabels); } catch(e) { console.error('Chart init error:', e); }
+    Chart.defaults.set('plugins.datalabels', {display: false});
+    
+    // 3. Run the app code
+    const DD=RAW.d;
 const CC=RAW.c;
 const DM=RAW.dm;
 const TG=RAW.tg; // type group: idx->"Rotary"/"Inverter"
@@ -728,6 +756,15 @@ document.querySelectorAll('.tab').forEach(tab=>{
 
 initFilters();
 renderAll();
+
+    
+  } catch(err) {
+    console.error('Dashboard load error:', err);
+    if (overlay) {
+      overlay.innerHTML = '<div style="text-align:center"><b>Load Error</b><br><span style="font-size:12px;color:#666">' + err.message + '</span><br><button onclick="location.reload()" style="margin-top:10px;padding:8px 20px;border:none;background:#1a8a5c;color:#fff;border-radius:6px;cursor:pointer">Retry</button></div>';
+    }
+  }
+})();
 </script>
 </body>
 </html>
