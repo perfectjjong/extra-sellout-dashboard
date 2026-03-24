@@ -405,10 +405,10 @@ class SelloutDataGenerator:
                 col_map["item_desc"] = i
             elif "VENDOR" in h_upper:
                 col_map["vendor"] = i
-            elif "FAMILY DESCRIPTION" in h_upper or "FAMILY_DESCRIPTION" in h_upper:
-                col_map["family"] = i
             elif "SUB FAMILY" in h_upper or "SUB_FAMILY" in h_upper:
                 col_map["subfam"] = i
+            elif "FAMILY DESCRIPTION" in h_upper or "FAMILY_DESCRIPTION" in h_upper:
+                col_map["family"] = i
             elif "BRAND" in h_upper:
                 col_map["brand"] = i
             elif "SALE QUANTITY" in h_upper or "SALE_QUANTITY" in h_upper:
@@ -440,9 +440,14 @@ class SelloutDataGenerator:
             val_raw = vals[col_map["val"]]
             date_raw = vals[col_map["date"]]
 
-            # Skip non-SA orgs
-            if is_excluded_org(org):
-                continue
+            # Skip non-SA: Country 컬럼 우선 사용, 없으면 org name fallback
+            country_val = str(vals[col_map["country"]]).strip().upper() if col_map.get("country") is not None and vals[col_map["country"]] else ""
+            if country_val:
+                if country_val != "SA":
+                    continue
+            else:
+                if is_excluded_org(org):
+                    continue
 
             # Filter AC only
             if not is_ac_family(family) and not is_ac_family(subfam):
