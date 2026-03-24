@@ -181,13 +181,47 @@ def extract_subfam_from_desc(desc):
     return "MINI SPLIT AIR CONDITIONER"  # Default
 
 
-def get_week_number(date_str):
-    """날짜에서 ISO 주차 번호 반환"""
-    if isinstance(date_str, datetime):
-        dt = date_str
+def get_extra_week_number(date_or_str):
+    """eXtra 방식 주차 계산: 일요일 시작, 연도 경계에서 W52로 끊기
+
+    규칙:
+    - 주는 일요일에 시작하고 토요일에 끝남
+    - 날짜의 실제 연도(year) 기준으로 주차 계산 (연도 경계에서 끊기)
+    - 최대 W52 (W53 없음) — 12월 말이 W53이 될 때 W52로 캡
+    - 예: 2026년 W1 = Jan 1(Thu)~Jan 3(Sat), W2 = Jan 4(Sun)~Jan 10(Sat)
+    """
+    if isinstance(date_or_str, datetime):
+        dt = date_or_str
     else:
-        dt = datetime.strptime(str(date_str).split()[0], "%Y-%m-%d")
-    return dt.isocalendar()[1]
+        dt = datetime.strptime(str(date_or_str).split()[0], "%Y-%m-%d")
+
+    year = dt.year
+    jan1 = datetime(year, 1, 1)
+
+    # Jan 1의 주 시작 일요일 (직전 또는 당일 일요일)
+    # weekday(): Mon=0, ..., Sun=6  →  일요일로 되돌아갈 일수: Sun=0, Mon=1, ..., Sat=6
+    jan1_days_back = (jan1.weekday() + 1) % 7
+    year_week1_start = jan1 - timedelta(days=jan1_days_back)
+
+    # dt의 주 시작 일요일
+    dt_days_back = (dt.weekday() + 1) % 7
+    dt_week_start = dt - timedelta(days=dt_days_back)
+
+    # 주차 = (dt_week_start - year_week1_start) / 7 + 1
+    week_num = (dt_week_start - year_week1_start).days // 7 + 1
+
+    # W52 캡 (12월 말 W53 방지)
+    if week_num > 52:
+        week_num = 52
+    if week_num < 1:
+        week_num = 1
+
+    return week_num
+
+
+def get_week_number(date_str):
+    """날짜에서 eXtra 주차 번호 반환 (일요일 시작, W52 캡)"""
+    return get_extra_week_number(date_str)
 
 
 def get_day_key(date_str):
@@ -555,9 +589,7 @@ class SelloutDataGenerator:
                     if month == 2 and day_num == 29 and year % 4 != 0:
                         continue
                     dt = datetime(year, month, day_num)
-                    week = dt.isocalendar()[1]
-                    if week > 52:
-                        week = 52
+                    week = get_extra_week_number(dt)
                     quarter = (month - 1) // 3 + 1
                     dm[f"{yi}-{di}"] = [week - 1, month, quarter]
                 except ValueError:
