@@ -29,6 +29,7 @@ from collections import defaultdict
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FCST_DIR = r"C:\Users\J_park\Documents\2026\01. Work\07.FCST_AI"
 WEEKLY_DIR = r"C:\Users\J_park\Documents\2026\01. Work\01. Sales\01. Sell out\01. Weekly\01. eXtra Raw\01. Sell out\00. Weekly"
+V2_XLSX_PATH = r"C:\Users\J_park\Al Hassan Ghazi Ibrahim Shaker Co. Ltd\GTM Team - B2C Channel Dashboard\3. eXtra Sell out_All Brand\eXtra_Sell out Data_v2.xlsx"
 
 ITEM_MASTER_PATH = os.path.join(SCRIPT_DIR, "item_master.json")
 PROMOTER_CONFIG_PATH = os.path.join(SCRIPT_DIR, "promoter_config.json")
@@ -392,6 +393,94 @@ class SelloutDataGenerator:
         wb.close()
         print(f"  Loaded {count} records")
 
+    def load_v2_weekly_xlsx(self, path, target_years):
+        """eXtra_Sell out Data_v2.xlsx의 Weekly 시트에서 연도별 데이터 로드.
+        컬럼: Week[0], Calendar Date[1], Organization Name[2], ...,
+              Family Description[8], Sub Family Description[9], Brand Description[10],
+              Sale Quantity[11], Sale Value[12], TYPE[13], SIZE[14], ...
+        - target_years: 로드할 연도 리스트 (예: [2024, 2025])
+        - 일별 실데이터 사용 (day_key = MM-DD)
+        - TYPE/SIZE 컬럼 사전 제공됨
+        """
+        import openpyxl, shutil, tempfile
+        print(f"Loading {os.path.basename(path)} (years={target_years}, sheet=Weekly)...")
+
+        # 파일이 열려있을 수 있으므로 임시 복사본 사용
+        tmp = os.path.join(tempfile.gettempdir(), "extra_v2_tmp.xlsx")
+        try:
+            shutil.copy2(path, tmp)
+        except PermissionError:
+            print("  [WARN] 파일 복사 실패. 직접 열기 시도...")
+            tmp = path
+
+        wb = openpyxl.load_workbook(tmp, data_only=True, read_only=True)
+        ws = wb["Weekly"]
+
+        count_by_year = {y: 0 for y in target_years}
+        target_set = set(target_years)
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not any(row):
+                continue
+            date_raw = row[1]
+            if isinstance(date_raw, datetime):
+                dt = date_raw
+            else:
+                try:
+                    dt = datetime.strptime(str(date_raw).split()[0], "%Y-%m-%d")
+                except Exception:
+                    continue
+
+            year = dt.year
+            if year not in target_set:
+                continue
+
+            org     = str(row[2]).strip() if row[2] else ""
+            family  = str(row[8]).strip() if row[8] else ""
+            sub_fam = str(row[9]).strip() if row[9] else ""
+            brand   = str(row[10]).strip() if row[10] else ""
+            qty_raw = row[11]
+            val_raw = row[12]
+            type_   = str(row[13]).strip() if row[13] else ""
+            size    = str(row[14]).strip() if row[14] else ""
+
+            # AC 필터
+            if not is_ac_family(family) and not is_ac_family(sub_fam):
+                continue
+
+            try:
+                qty = int(float(qty_raw)) if qty_raw is not None else 0
+            except Exception:
+                qty = 0
+            try:
+                val = round(float(val_raw)) if val_raw else 0
+            except Exception:
+                val = 0
+
+            day_key = f"{dt.month:02d}-{dt.day:02d}"
+            region = self.branch_region.get(org, "Central")
+            promoter = "O" if org in self.promoter_stores else "X"
+            fp = round(val * 1.15) if val else 0
+            size = normalize_size(size)
+
+            self.brands.add(brand)
+            self.subfamilies.add(sub_fam)
+            self.sizes.add(size)
+            self.regions.add(region)
+            self.branches.add(org)
+
+            self.records.append({
+                "year": year, "day": day_key, "brand": brand,
+                "sf": sub_fam, "type": type_, "size": size,
+                "region": region, "promoter": promoter, "branch": org,
+                "qty": qty, "val": val, "fp": fp
+            })
+            count_by_year[year] += 1
+
+        wb.close()
+        for y, cnt in count_by_year.items():
+            print(f"  {y}: {cnt} records")
+
     def process_weekly_xlsx(self, week_num):
         """주간 xlsx 파일 처리 (2026)"""
         import openpyxl
@@ -697,13 +786,18 @@ class SelloutDataGenerator:
 
         if rebuild:
             print("\n[MODE] Full rebuild (2024 + 2025 + 2026)")
-            # Load 2024 & 2025 from xlsx
-            xlsx_2024 = os.path.join(FCST_DIR, "extra_2024.xlsx")
-            xlsx_2025 = os.path.join(FCST_DIR, "extra_2025.xlsx")
-            if os.path.exists(xlsx_2024):
-                self.load_annual_xlsx(xlsx_2024, 2024)
-            if os.path.exists(xlsx_2025):
-                self.load_annual_xlsx(xlsx_2025, 2025)
+            # Load 2024 & 2025 from v2 Weekly sheet (일별 실데이터)
+            if os.path.exists(V2_XLSX_PATH):
+                self.load_v2_weekly_xlsx(V2_XLSX_PATH, [2024, 2025])
+            else:
+                # Fallback: legacy annual files
+                print(f"  [WARN] v2 파일 없음, 레거시 파일 사용: {V2_XLSX_PATH}")
+                xlsx_2024 = os.path.join(FCST_DIR, "extra_2024.xlsx")
+                xlsx_2025 = os.path.join(FCST_DIR, "extra_2025.xlsx")
+                if os.path.exists(xlsx_2024):
+                    self.load_annual_xlsx(xlsx_2024, 2024)
+                if os.path.exists(xlsx_2025):
+                    self.load_annual_xlsx(xlsx_2025, 2025)
         else:
             print("\n[MODE] Incremental update (keep 2024-2025, rebuild 2026)")
             self.load_existing_data()
