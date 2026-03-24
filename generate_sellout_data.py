@@ -323,26 +323,47 @@ class SelloutDataGenerator:
         print(f"  Loaded {len(self.records)} records (2024-2025)")
 
     def load_annual_xlsx(self, path, year):
-        """연간 sellout xlsx 로드 (2024 or 2025)"""
+        """연간 sellout xlsx 로드 (2024 or 2025)
+        컬럼: Year, ORG, Month, ITEM_NUM, ITEM_DESC, VENDOR, CAT, CAT_DESC, FAM, SUB_FAM, BRAND, TYPE, SIZE, Origin, QTY, SALE_VAL, QTY_RET, NET_SALES, Unit_price
+        연간 파일은 SA-only, AC-only 데이터로 사전 필터링되어 있음.
+        """
         import openpyxl
+        MONTH_MAP = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+        }
         print(f"Loading {os.path.basename(path)} (year={year})...")
         wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
         ws = wb[wb.sheetnames[0]]
 
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
-            # Year, ORG, Month, ITEM_NUM, ITEM_DESC, VENDOR, CAT, CAT_DESC, FAM, SUB_FAM, BRAND, TYPE, SIZE, Origin, QTY, SALE_VAL, QTY_RET, NET_SALES, Unit_price
-            org = str(row[1]) if row[1] else ""
-            sub_fam = str(row[9]) if row[9] else ""
-            brand = str(row[10]) if row[10] else ""
-            type_ = str(row[11]) if row[11] else ""
-            size = str(row[12]) if row[12] else ""
-            qty = row[14] if row[14] else 0
+            if not any(row):
+                continue
+            org     = str(row[1]).strip() if row[1] else ""
+            family  = str(row[8]).strip() if row[8] else ""
+            sub_fam = str(row[9]).strip() if row[9] else ""
+            brand   = str(row[10]).strip() if row[10] else ""
+            type_   = str(row[11]).strip() if row[11] else ""
+            size    = str(row[12]).strip() if row[12] else ""
+            qty     = row[14] if row[14] else 0
             sale_val = row[15] if row[15] else 0
-            month = row[2] if row[2] else 1
+
+            # AC family 필터 (연간 파일은 AC-only이나 명시적으로 확인)
+            if not is_ac_family(family) and not is_ac_family(sub_fam):
+                continue
+
+            # Month 파싱: int(1~12) 또는 string("Jan"~"Dec") 모두 처리
+            month_raw = row[2]
+            if isinstance(month_raw, int):
+                month = month_raw
+            elif isinstance(month_raw, str):
+                month = MONTH_MAP.get(month_raw.strip().lower()[:3], 1)
+            else:
+                month = 1
 
             # Derive day from month (use 15th as default for monthly data)
-            day_key = f"{int(month):02d}-15"
+            day_key = f"{month:02d}-15"
 
             # Region & Promoter
             region = self.branch_region.get(org, "Central")
