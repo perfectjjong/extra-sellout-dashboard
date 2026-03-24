@@ -444,6 +444,13 @@ class SelloutDataGenerator:
             type_   = str(row[13]).strip() if row[13] else ""
             size    = str(row[14]).strip() if row[14] else ""
 
+            # Normalize type capitalization (v2 uses lowercase 'and')
+            _TYPE_NORM = {
+                'Hot and Cold - Inverter': 'Hot And Cold - Inverter',
+                'Hot and Cold - Rotary':   'Hot And Cold - Rotary',
+            }
+            type_ = _TYPE_NORM.get(type_, type_)
+
             # AC 필터
             if not is_ac_family(family) and not is_ac_family(sub_fam):
                 continue
