@@ -578,8 +578,12 @@ class SelloutDataGenerator:
             else:
                 continue
 
+            # Skip dates from previous year (2025 data already in v2 Weekly source)
+            if dt.year < 2026:
+                continue
+
             day_key = dt.strftime("%m-%d")
-            actual_year = dt.year  # Use actual year from date (e.g., week01 may have Dec 2025 dates)
+            actual_year = dt.year  # Always 2026+ after skip above
 
             # Resolve TYPE & SIZE from master or description
             if item_num in self.item_master:
